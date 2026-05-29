@@ -1,0 +1,25 @@
+{
+  "name": "finance-tracker-vue",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "type-check": "vue-tsc -b"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.5.2",
+    "@vitejs/plugin-vue": "^5.0.5",
+    "axios": "^1.7.2",
+    "pinia": "^2.1.7",
+    "vite": "^5.3.1",
+    "vue": "^3.4.29",
+    "vue-router": "^4.3.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vue-tsc": "^2.0.21"
+  }
+}

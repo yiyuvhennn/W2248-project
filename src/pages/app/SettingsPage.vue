@@ -18,19 +18,16 @@ type SettingTab = 'profile' | 'password' | 'categories' | 'export' | 'logout'
 
 const active = ref<SettingTab>('profile')
 const isMobileSettingsHome = ref(true)
-
 const modalOpen = ref(false)
 const editing = ref<Category | null>(null)
 const deleting = ref<Category | null>(null)
 const exportType = ref<'csv' | 'json'>('csv')
 
-const startDate = ref('2026/01/01')
-const endDate = ref('2026/03/06')
+const startDate = ref('2026-01-01')
+const endDate = ref('2026-03-06')
 
-const profileForm = ref({
-  name: auth.user?.name || '王小明',
-  email: auth.user?.email || 'wangxm@example.com'
-})
+const profileName = ref(auth.user?.name || '王小明')
+const profileEmail = ref(auth.user?.email || 'wangxm@example.com')
 
 const currentPassword = ref('')
 const newPassword = ref('')
@@ -40,11 +37,11 @@ const income = computed(() => store.categories.income)
 const expense = computed(() => store.categories.expense)
 
 const menus = [
-  { key: 'profile', label: '個人資料', icon: 'fa-user', desc: '修改姓名與信箱' },
-  { key: 'password', label: '修改密碼', icon: 'fa-lock', desc: '更換登入密碼' },
-  { key: 'categories', label: '分類管理', icon: 'fa-tag', desc: '新增或刪除分類' },
-  { key: 'export', label: '資料匯出', icon: 'fa-download', desc: '匯出為 CSV 格式' },
-  { key: 'logout', label: '登出帳號', icon: 'fa-right-from-bracket', desc: '' }
+  { key: 'profile', label: '個人資料', icon: 'fa-user' },
+  { key: 'password', label: '修改密碼', icon: 'fa-lock' },
+  { key: 'categories', label: '分類管理', icon: 'fa-tag' },
+  { key: 'export', label: '資料匯出', icon: 'fa-download' },
+  { key: 'logout', label: '登出帳號', icon: 'fa-right-from-bracket' }
 ] as const
 
 const mobileTitle = computed(() => {
@@ -56,9 +53,23 @@ const mobileTitle = computed(() => {
 })
 
 const profileInitial = computed(() => {
-  return profileForm.value.name.trim().charAt(0) || '王'
+  return profileName.value.trim().charAt(0) || '王'
 })
+function openMobileSetting(tab: SettingTab) {
+  if (tab === 'logout') {
+    auth.logout()
+    toast.info('已登出帳號')
+    location.href = '/login'
+    return
+  }
 
+  active.value = tab
+  isMobileSettingsHome.value = false
+}
+
+function backToMobileSettingsHome() {
+  isMobileSettingsHome.value = true
+}
 function openCreate() {
   editing.value = null
   modalOpen.value = true
@@ -100,33 +111,15 @@ async function confirmDelete() {
   }
 }
 
-function logout() {
-  auth.logout()
-  toast.info('已登出帳號')
-  location.href = '/login'
-}
-
 function menuClick(key: SettingTab) {
   if (key === 'logout') {
-    logout()
+    auth.logout()
+    toast.info('已登出帳號')
+    location.href = '/login'
     return
   }
 
   active.value = key
-}
-
-function openMobileSetting(key: SettingTab) {
-  if (key === 'logout') {
-    logout()
-    return
-  }
-
-  active.value = key
-  isMobileSettingsHome.value = false
-}
-
-function backToMobileSettingsHome() {
-  isMobileSettingsHome.value = true
 }
 
 function saveProfile() {
@@ -172,12 +165,12 @@ function categoryEmoji(category: Category) {
 function categoryCount(category: Category) {
   const name = category.name
 
-  if (name.includes('食品') || name.includes('餐飲') || name.includes('餐')) return 5
+  if (name.includes('食品') || name.includes('餐飲')) return 5
   if (name.includes('交通')) return 3
-  if (name.includes('住房') || name.includes('房') || name.includes('租')) return 1
+  if (name.includes('住房') || name.includes('租')) return 1
   if (name.includes('娛樂')) return 2
   if (name.includes('購物')) return 4
-  if (name.includes('薪資') || name.includes('薪')) return 2
+  if (name.includes('薪資')) return 2
 
   return 1
 }
@@ -189,168 +182,213 @@ onMounted(() => {
 
 <template>
   <AppShell>
-    <main class="settings-page">
-      <!-- desktop / tablet -->
-      <section class="desktop-settings">
-        <h1 class="settings-title">設定</h1>
+    <main class="settings-page" :class="`settings-page--${active}`">
+      <header class="mobile-header">
+        <button class="mobile-back" type="button" @click="backToMobileSettingsHome">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
 
-        <div class="settings-layout">
-          <aside class="settings-menu">
-            <button
-              v-for="m in menus"
-              :key="m.key"
-              type="button"
-              :class="{ active: active === m.key, logout: m.key === 'logout' }"
-              @click="menuClick(m.key)"
-            >
-              <i :class="['fa-solid', m.icon]"></i>
-              <span>{{ m.label }}</span>
-            </button>
-          </aside>
+        <h1>{{ mobileTitle }}</h1>
 
-          <section class="settings-content">
-            <!-- 個人資料 -->
-            <template v-if="active === 'profile'">
-              <section class="setting-card profile-card">
-                <header class="setting-card-head">
-                  <div class="setting-head-title">
-                    <i class="fa-solid fa-user"></i>
-                    <div>
-                      <h2>個人資料</h2>
-                      <p>管理您的帳號基本資訊</p>
-                    </div>
-                  </div>
-                </header>
+        <button
+          v-if="active === 'categories'"
+          class="mobile-add-btn"
+          type="button"
+          @click="openCreate"
+        >
+          + 新增
+        </button>
 
-                <div class="profile-body">
-                  <div class="profile-top">
-                    <div class="profile-avatar">{{ profileInitial }}</div>
+        <span v-else class="mobile-header-spacer"></span>
+      </header>
 
-                    <div class="profile-meta">
-                      <h3>{{ profileForm.name }}</h3>
-                      <p>{{ profileForm.email }}</p>
-                      <button class="small-outline-btn" type="button" @click="fakeAction">
-                        <i class="fa-solid fa-pen"></i>
-                        更換大頭照
-                      </button>
-                    </div>
-                  </div>
+      <h1 class="settings-title">設定</h1>
 
-                  <div class="form-grid">
-                    <label class="field">
-                      <span>姓名</span>
-                      <div class="input-box">
-                        <i class="fa-solid fa-user"></i>
-                        <input v-model="profileForm.name" type="text" />
-                      </div>
-                    </label>
+      <div class="settings-layout">
+        <nav class="settings-menu">
+          <button
+            v-for="m in menus"
+            :key="m.key"
+            type="button"
+            :class="{ active: active === m.key, logout: m.key === 'logout' }"
+            @click="menuClick(m.key)"
+          >
+            <i :class="['fa-solid', m.icon]"></i>
+            <span>{{ m.label }}</span>
+          </button>
+        </nav>
 
-                    <label class="field">
-                      <span>電子信箱</span>
-                      <div class="input-box">
-                        <i class="fa-solid fa-envelope"></i>
-                        <input v-model="profileForm.email" type="email" />
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-                <footer class="card-footer">
-                  <button class="ghost-btn" type="button">取消</button>
-                  <button class="primary-btn" type="button" @click="saveProfile">
-                    <i class="fa-solid fa-check"></i>
-                    儲存變更
-                  </button>
-                </footer>
-              </section>
-
-              <section class="danger-zone">
-                <div class="danger-copy">
-                  <i class="fa-solid fa-triangle-exclamation"></i>
+        <section class="settings-main">
+          <!-- 個人資料 -->
+          <template v-if="active === 'profile'">
+            <section class="setting-card profile-card">
+              <header class="setting-card-head desktop-card-head">
+                <div class="setting-head-title">
+                  <i class="fa-solid fa-user"></i>
                   <div>
-                    <h3>危險操作</h3>
-                    <p>以下操作無法復原，請謹慎操作</p>
+                    <h2>個人資料</h2>
+                    <p>管理您的帳號基本資訊</p>
+                  </div>
+                </div>
+              </header>
+
+              <div class="profile-body">
+                <div class="profile-avatar-row">
+                  <div class="profile-avatar">{{ profileInitial }}</div>
+
+                  <div class="profile-name-block">
+                    <h3>{{ profileName }}</h3>
+                    <p>{{ profileEmail }}</p>
+                    <button class="small-outline-btn" type="button" @click="fakeAction">
+                      <i class="fa-solid fa-pen"></i>
+                      更換大頭照
+                    </button>
                   </div>
                 </div>
 
-                <button class="danger-btn" type="button" @click="fakeAction">
-                  <i class="fa-solid fa-trash"></i>
-                  刪除帳號及所有資料
-                </button>
-              </section>
-            </template>
-
-            <!-- 修改密碼 -->
-            <template v-if="active === 'password'">
-              <section class="setting-card password-card">
-                <header class="setting-card-head">
-                  <div class="setting-head-title">
-                    <i class="fa-solid fa-lock"></i>
-                    <div>
-                      <h2>修改密碼</h2>
-                      <p>定期更換密碼保護帳號安全</p>
-                    </div>
-                  </div>
-                </header>
-
-                <div class="password-body">
-                  <label class="field field-full">
-                    <span>目前密碼</span>
+                <div class="profile-form-grid">
+                  <label class="form-field">
+                    <span>姓名</span>
                     <div class="input-box">
-                      <i class="fa-solid fa-lock"></i>
-                      <input v-model="currentPassword" type="password" placeholder="輸入目前密碼" />
-                      <i class="fa-solid fa-eye input-eye"></i>
+                      <i class="fa-solid fa-user"></i>
+                      <input v-model="profileName" type="text" />
                     </div>
                   </label>
 
-                  <div class="form-grid">
-                    <label class="field">
-                      <span>新密碼</span>
-                      <div class="input-box">
-                        <i class="fa-solid fa-lock"></i>
-                        <input v-model="newPassword" type="password" placeholder="至少 8 個字元" />
-                        <i class="fa-solid fa-eye input-eye"></i>
-                      </div>
-                    </label>
+                  <label class="form-field">
+                    <span>電子信箱</span>
+                    <div class="input-box">
+                      <i class="fa-solid fa-envelope"></i>
+                      <input v-model="profileEmail" type="email" />
+                    </div>
+                  </label>
+                </div>
+              </div>
 
-                    <label class="field">
-                      <span>確認新密碼</span>
-                      <div class="input-box">
-                        <i class="fa-solid fa-lock"></i>
-                        <input v-model="confirmPassword" type="password" placeholder="再輸入一次" />
-                        <i class="fa-solid fa-eye input-eye"></i>
-                      </div>
-                    </label>
+              <footer class="card-footer desktop-footer">
+                <button class="ghost-btn" type="button">取消</button>
+                <button class="primary-btn" type="button" @click="saveProfile">
+                  <i class="fa-solid fa-check"></i>
+                  儲存變更
+                </button>
+              </footer>
+            </section>
+
+            <section class="danger-box desktop-danger">
+              <div class="danger-title">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <div>
+                  <h3>危險操作</h3>
+                  <p>以下操作無法復原，請謹慎操作</p>
+                </div>
+              </div>
+
+              <button class="danger-btn" type="button" @click="fakeAction">
+                <i class="fa-solid fa-trash"></i>
+                刪除帳號及所有資料
+              </button>
+            </section>
+
+            <section class="mobile-profile-panel">
+              <div class="mobile-avatar-card">
+                <div class="profile-avatar">{{ profileInitial }}</div>
+                <button class="small-outline-btn" type="button" @click="fakeAction">
+                  <i class="fa-solid fa-pen"></i>
+                  更換大頭照
+                </button>
+              </div>
+
+              <div class="mobile-form-card">
+                <label class="mobile-form-field">
+                  <span>姓名</span>
+                  <input v-model="profileName" type="text" />
+                </label>
+
+                <label class="mobile-form-field">
+                  <span>電子信箱</span>
+                  <input v-model="profileEmail" type="email" />
+                </label>
+              </div>
+
+              <button class="mobile-full-primary" type="button" @click="saveProfile">
+                <i class="fa-solid fa-check"></i>
+                儲存
+              </button>
+            </section>
+          </template>
+
+          <!-- 修改密碼 -->
+          <template v-else-if="active === 'password'">
+            <section class="setting-card password-card">
+              <header class="setting-card-head">
+                <div class="setting-head-title">
+                  <i class="fa-solid fa-lock"></i>
+                  <div>
+                    <h2>修改密碼</h2>
+                    <p>定期更換密碼保護帳號安全</p>
+                  </div>
+                </div>
+              </header>
+
+              <div class="password-body">
+                <label class="form-field full">
+                  <span>目前密碼</span>
+                  <div class="input-box">
+                    <i class="fa-solid fa-lock"></i>
+                    <input v-model="currentPassword" type="password" placeholder="輸入目前密碼" />
+                    <i class="fa-solid fa-eye eye-icon"></i>
+                  </div>
+                </label>
+
+                <div class="password-grid">
+                  <label class="form-field">
+                    <span>新密碼</span>
+                    <div class="input-box">
+                      <i class="fa-solid fa-lock"></i>
+                      <input v-model="newPassword" type="password" placeholder="至少 8 個字元" />
+                      <i class="fa-solid fa-eye eye-icon"></i>
+                    </div>
+                  </label>
+
+                  <label class="form-field">
+                    <span>確認新密碼</span>
+                    <div class="input-box">
+                      <i class="fa-solid fa-lock"></i>
+                      <input v-model="confirmPassword" type="password" placeholder="再輸入一次" />
+                      <i class="fa-solid fa-eye eye-icon"></i>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <footer class="card-footer">
+                <button class="primary-btn" type="button" @click="updatePassword">
+                  <i class="fa-solid fa-check"></i>
+                  更新密碼
+                </button>
+              </footer>
+            </section>
+          </template>
+
+          <!-- 分類管理 -->
+          <template v-else-if="active === 'categories'">
+            <section class="setting-card categories-card">
+              <header class="setting-card-head categories-head">
+                <div class="setting-head-title">
+                  <i class="fa-solid fa-tag"></i>
+                  <div>
+                    <h2>分類管理</h2>
+                    <p>管理您的收支分類，新增或刪除自訂分類</p>
                   </div>
                 </div>
 
-                <footer class="card-footer">
-                  <button class="primary-btn" type="button" @click="updatePassword">
-                    <i class="fa-solid fa-check"></i>
-                    更新密碼
-                  </button>
-                </footer>
-              </section>
-            </template>
+                <button class="primary-btn add-category-btn" type="button" @click="openCreate">
+                  <i class="fa-solid fa-plus"></i>
+                  新增分類
+                </button>
+              </header>
 
-            <!-- 分類管理 -->
-            <template v-if="active === 'categories'">
-              <section class="setting-card category-card">
-                <header class="setting-card-head">
-                  <div class="setting-head-title">
-                    <i class="fa-solid fa-tag"></i>
-                    <div>
-                      <h2>分類管理</h2>
-                      <p>管理您的收支分類，新增或刪除自訂分類</p>
-                    </div>
-                  </div>
-
-                  <button class="primary-btn" type="button" @click="openCreate">
-                    <i class="fa-solid fa-plus"></i>
-                    新增分類
-                  </button>
-                </header>
-
+              <div class="category-group">
                 <div class="category-group-title">支出分類</div>
 
                 <div
@@ -358,16 +396,17 @@ onMounted(() => {
                   :key="cat.id"
                   class="category-row"
                 >
-                  <span class="color-dot" :style="{ background: cat.color }"></span>
+                  <span class="category-dot" :style="{ background: cat.color }"></span>
 
                   <span
-                    class="cat-icon"
-                    :style="{ background: cat.color + '22' }"
+                    class="category-emoji"
+                    :style="{ background: `${cat.color}22` }"
                   >
                     {{ categoryEmoji(cat) }}
                   </span>
 
                   <strong>{{ cat.name }}</strong>
+
                   <small>{{ categoryCount(cat) }} 筆紀錄</small>
 
                   <button class="mini-action" type="button" @click="openEdit(cat)">
@@ -378,7 +417,9 @@ onMounted(() => {
                     <i class="fa-solid fa-trash"></i>
                   </button>
                 </div>
+              </div>
 
+              <div class="category-group">
                 <div class="category-group-title">收入分類</div>
 
                 <div
@@ -386,16 +427,17 @@ onMounted(() => {
                   :key="cat.id"
                   class="category-row"
                 >
-                  <span class="color-dot" :style="{ background: cat.color }"></span>
+                  <span class="category-dot" :style="{ background: cat.color }"></span>
 
                   <span
-                    class="cat-icon"
-                    :style="{ background: cat.color + '22' }"
+                    class="category-emoji"
+                    :style="{ background: `${cat.color}22` }"
                   >
                     {{ categoryEmoji(cat) }}
                   </span>
 
                   <strong>{{ cat.name }}</strong>
+
                   <small>{{ categoryCount(cat) }} 筆紀錄</small>
 
                   <button class="mini-action" type="button" @click="openEdit(cat)">
@@ -406,374 +448,83 @@ onMounted(() => {
                     <i class="fa-solid fa-trash"></i>
                   </button>
                 </div>
-              </section>
-            </template>
+              </div>
+            </section>
+          </template>
 
-            <!-- 資料匯出 -->
-            <template v-if="active === 'export'">
-              <section class="setting-card export-card">
-                <header class="setting-card-head">
-                  <div class="setting-head-title">
-                    <i class="fa-solid fa-download"></i>
-                    <div>
-                      <h2>資料匯出</h2>
-                      <p>將記帳紀錄匯出為檔案，方便備份或分析</p>
+          <!-- 資料匯出 -->
+          <template v-else-if="active === 'export'">
+            <section class="setting-card export-card">
+              <header class="setting-card-head">
+                <div class="setting-head-title">
+                  <i class="fa-solid fa-download"></i>
+                  <div>
+                    <h2>資料匯出</h2>
+                    <p>將記帳紀錄匯出為檔案，方便備份或分析</p>
+                  </div>
+                </div>
+              </header>
+
+              <div class="export-body">
+                <div class="export-date-grid">
+                  <label class="form-field">
+                    <span>起始日期</span>
+                    <div class="input-box">
+                      <i class="fa-regular fa-calendar"></i>
+                      <input v-model="startDate" type="date" />
                     </div>
-                  </div>
-                </header>
+                  </label>
 
-                <div class="export-body">
-                  <div class="form-grid">
-                    <label class="field">
-                      <span>起始日期</span>
-                      <div class="input-box">
-                        <i class="fa-regular fa-calendar"></i>
-                        <input v-model="startDate" type="text" />
-                      </div>
-                    </label>
-
-                    <label class="field">
-                      <span>結束日期</span>
-                      <div class="input-box">
-                        <i class="fa-regular fa-calendar"></i>
-                        <input v-model="endDate" type="text" />
-                      </div>
-                    </label>
-                  </div>
-
-                  <p class="export-label">匯出格式</p>
-
-                  <div class="format-grid">
-                    <button
-                      type="button"
-                      :class="{ active: exportType === 'csv' }"
-                      @click="exportType = 'csv'"
-                    >
-                      <i class="fa-solid fa-chart-column csv-icon"></i>
-                      <strong>CSV</strong>
-                      <small>Excel 相容格式</small>
-                    </button>
-
-                    <button
-                      type="button"
-                      :class="{ active: exportType === 'json' }"
-                      @click="exportType = 'json'"
-                    >
-                      <i class="fa-solid fa-file json-icon"></i>
-                      <strong>JSON</strong>
-                      <small>原始資料格式</small>
-                    </button>
-                  </div>
-
-                  <div class="export-info">共找到 23 筆紀錄（2026/01/01 - 2026/03/06）</div>
+                  <label class="form-field">
+                    <span>結束日期</span>
+                    <div class="input-box">
+                      <i class="fa-regular fa-calendar"></i>
+                      <input v-model="endDate" type="date" />
+                    </div>
+                  </label>
                 </div>
 
-                <footer class="card-footer">
-                  <button class="primary-btn" type="button" @click="download">
-                    <i class="fa-solid fa-download"></i>
-                    下載 {{ exportType.toUpperCase() }} 檔案
+                <div class="format-label">匯出格式</div>
+
+                <div class="export-format-grid">
+                  <button
+                    class="export-format"
+                    :class="{ active: exportType === 'csv' }"
+                    type="button"
+                    @click="exportType = 'csv'"
+                  >
+                    <span class="format-icon">📊</span>
+                    <strong>CSV</strong>
+                    <small>Excel 相容格式</small>
                   </button>
-                </footer>
-              </section>
-            </template>
-          </section>
-        </div>
-      </section>
 
-      <!-- mobile -->
-      <section class="mobile-settings">
-        <!-- mobile 設定首頁 -->
-        <template v-if="isMobileSettingsHome">
-          <header class="mobile-home-head">
-            <h1>設定</h1>
-          </header>
-
-          <section class="mobile-profile-summary">
-            <div class="mobile-avatar">{{ profileInitial }}</div>
-            <h2>{{ profileForm.name }}</h2>
-            <p>{{ profileForm.email }}</p>
-          </section>
-
-          <section class="mobile-menu-card">
-            <p class="mobile-group-label">帳號設定</p>
-
-            <button type="button" class="mobile-menu-item" @click="openMobileSetting('profile')">
-              <span class="mobile-item-icon">
-                <i class="fa-solid fa-user"></i>
-              </span>
-              <span>
-                <strong>個人資料</strong>
-                <small>修改姓名與信箱</small>
-              </span>
-              <i class="fa-solid fa-chevron-right"></i>
-            </button>
-
-            <button type="button" class="mobile-menu-item" @click="openMobileSetting('password')">
-              <span class="mobile-item-icon">
-                <i class="fa-solid fa-lock"></i>
-              </span>
-              <span>
-                <strong>修改密碼</strong>
-                <small>更換登入密碼</small>
-              </span>
-              <i class="fa-solid fa-chevron-right"></i>
-            </button>
-          </section>
-
-          <section class="mobile-menu-card">
-            <p class="mobile-group-label">資料管理</p>
-
-            <button type="button" class="mobile-menu-item" @click="openMobileSetting('categories')">
-              <span class="mobile-item-icon">
-                <i class="fa-solid fa-tag"></i>
-              </span>
-              <span>
-                <strong>分類管理</strong>
-                <small>新增或刪除分類</small>
-              </span>
-              <i class="fa-solid fa-chevron-right"></i>
-            </button>
-
-            <button type="button" class="mobile-menu-item" @click="openMobileSetting('export')">
-              <span class="mobile-item-icon">
-                <i class="fa-solid fa-download"></i>
-              </span>
-              <span>
-                <strong>資料匯出</strong>
-                <small>匯出為 CSV 格式</small>
-              </span>
-              <i class="fa-solid fa-chevron-right"></i>
-            </button>
-          </section>
-
-          <section class="mobile-menu-card">
-            <button type="button" class="mobile-menu-item mobile-logout" @click="openMobileSetting('logout')">
-              <span class="mobile-item-icon danger">
-                <i class="fa-solid fa-right-from-bracket"></i>
-              </span>
-              <span>
-                <strong>登出帳號</strong>
-              </span>
-              <i class="fa-solid fa-chevron-right"></i>
-            </button>
-          </section>
-
-          <section class="mobile-danger-box">
-            <h3>危險操作</h3>
-            <p>以下操作無法復原，請謹慎操作</p>
-            <button type="button" @click="fakeAction">
-              <i class="fa-solid fa-trash"></i>
-              刪除帳號及所有資料
-            </button>
-          </section>
-        </template>
-
-        <!-- mobile 子頁面 -->
-        <template v-else>
-          <header class="mobile-detail-head">
-            <button class="mobile-back" type="button" @click="backToMobileSettingsHome">
-              <i class="fa-solid fa-chevron-left"></i>
-            </button>
-
-            <h1>{{ mobileTitle }}</h1>
-
-            <button
-              v-if="active === 'categories'"
-              class="mobile-add-btn"
-              type="button"
-              @click="openCreate"
-            >
-              + 新增
-            </button>
-
-            <span v-else></span>
-          </header>
-
-          <!-- mobile 個人資料 -->
-          <template v-if="active === 'profile'">
-            <section class="mobile-avatar-card">
-              <div class="mobile-avatar">{{ profileInitial }}</div>
-              <button class="small-outline-btn" type="button" @click="fakeAction">
-                <i class="fa-solid fa-pen"></i>
-                更換大頭照
-              </button>
-            </section>
-
-            <section class="mobile-form-card">
-              <label class="field">
-                <span>姓名</span>
-                <div class="mobile-input">
-                  <input v-model="profileForm.name" type="text" />
-                </div>
-              </label>
-
-              <label class="field">
-                <span>電子信箱</span>
-                <div class="mobile-input">
-                  <input v-model="profileForm.email" type="email" />
-                </div>
-              </label>
-            </section>
-
-            <button class="mobile-primary-full" type="button" @click="saveProfile">
-              <i class="fa-solid fa-check"></i>
-              儲存
-            </button>
-          </template>
-
-          <!-- mobile 修改密碼 -->
-          <template v-if="active === 'password'">
-            <section class="mobile-form-card">
-              <label class="field">
-                <span>目前密碼</span>
-                <div class="mobile-input with-icon">
-                  <i class="fa-solid fa-lock"></i>
-                  <input v-model="currentPassword" type="password" placeholder="輸入目前密碼" />
-                  <i class="fa-solid fa-eye input-eye"></i>
-                </div>
-              </label>
-
-              <label class="field">
-                <span>新密碼</span>
-                <div class="mobile-input with-icon">
-                  <i class="fa-solid fa-lock"></i>
-                  <input v-model="newPassword" type="password" placeholder="至少 8 個字元" />
-                  <i class="fa-solid fa-eye input-eye"></i>
-                </div>
-              </label>
-
-              <label class="field">
-                <span>確認新密碼</span>
-                <div class="mobile-input with-icon">
-                  <i class="fa-solid fa-lock"></i>
-                  <input v-model="confirmPassword" type="password" placeholder="再輸入一次" />
-                  <i class="fa-solid fa-eye input-eye"></i>
-                </div>
-              </label>
-            </section>
-
-            <button class="mobile-primary-full" type="button" @click="updatePassword">
-              <i class="fa-solid fa-check"></i>
-              更新密碼
-            </button>
-          </template>
-
-          <!-- mobile 分類管理 -->
-          <template v-if="active === 'categories'">
-            <section class="mobile-category-list">
-              <div class="category-group-title">支出分類</div>
-
-              <div
-                v-for="cat in expense"
-                :key="cat.id"
-                class="mobile-category-row"
-              >
-                <span
-                  class="cat-icon"
-                  :style="{ background: cat.color + '22' }"
-                >
-                  {{ categoryEmoji(cat) }}
-                </span>
-
-                <div>
-                  <strong>{{ cat.name }}</strong>
-                  <small>{{ categoryCount(cat) }} 筆紀錄</small>
+                  <button
+                    class="export-format"
+                    :class="{ active: exportType === 'json' }"
+                    type="button"
+                    @click="exportType = 'json'"
+                  >
+                    <span class="format-icon">📄</span>
+                    <strong>JSON</strong>
+                    <small>原始資料格式</small>
+                  </button>
                 </div>
 
-                <button class="mini-action" type="button" @click="openEdit(cat)">
-                  <i class="fa-solid fa-pen"></i>
-                </button>
-
-                <button class="mini-action delete" type="button" @click="deleting = cat">
-                  <i class="fa-solid fa-trash"></i>
-                </button>
+                <div class="export-info">
+                  共找到 <strong>23 筆紀錄</strong>（2026/01/01 - 2026/03/06）
+                </div>
               </div>
 
-              <div class="category-group-title">收入分類</div>
-
-              <div
-                v-for="cat in income"
-                :key="cat.id"
-                class="mobile-category-row"
-              >
-                <span
-                  class="cat-icon"
-                  :style="{ background: cat.color + '22' }"
-                >
-                  {{ categoryEmoji(cat) }}
-                </span>
-
-                <div>
-                  <strong>{{ cat.name }}</strong>
-                  <small>{{ categoryCount(cat) }} 筆紀錄</small>
-                </div>
-
-                <button class="mini-action" type="button" @click="openEdit(cat)">
-                  <i class="fa-solid fa-pen"></i>
+              <footer class="card-footer">
+                <button class="primary-btn export-download-btn" type="button" @click="download">
+                  <i class="fa-solid fa-download"></i>
+                  下載 {{ exportType.toUpperCase() }} 檔案
                 </button>
-
-                <button class="mini-action delete" type="button" @click="deleting = cat">
-                  <i class="fa-solid fa-trash"></i>
-                </button>
-              </div>
+              </footer>
             </section>
           </template>
-
-          <!-- mobile 資料匯出 -->
-          <template v-if="active === 'export'">
-            <section class="mobile-form-card">
-              <label class="field">
-                <span>起始日期</span>
-                <div class="mobile-input with-icon">
-                  <i class="fa-regular fa-calendar"></i>
-                  <input v-model="startDate" type="text" />
-                </div>
-              </label>
-
-              <label class="field">
-                <span>結束日期</span>
-                <div class="mobile-input with-icon">
-                  <i class="fa-regular fa-calendar"></i>
-                  <input v-model="endDate" type="text" />
-                </div>
-              </label>
-            </section>
-
-            <section class="mobile-form-card">
-              <p class="export-label">匯出格式</p>
-
-              <div class="format-grid mobile-format-grid">
-                <button
-                  type="button"
-                  :class="{ active: exportType === 'csv' }"
-                  @click="exportType = 'csv'"
-                >
-                  <i class="fa-solid fa-chart-column csv-icon"></i>
-                  <strong>CSV</strong>
-                  <small>Excel 相容格式</small>
-                </button>
-
-                <button
-                  type="button"
-                  :class="{ active: exportType === 'json' }"
-                  @click="exportType = 'json'"
-                >
-                  <i class="fa-solid fa-file json-icon"></i>
-                  <strong>JSON</strong>
-                  <small>原始資料格式</small>
-                </button>
-              </div>
-            </section>
-
-            <div class="export-info mobile-export-info">共找到 23 筆紀錄（2026/01/01 - 2026/03/06）</div>
-
-            <button class="mobile-primary-full" type="button" @click="download">
-              <i class="fa-solid fa-download"></i>
-              下載 {{ exportType.toUpperCase() }} 檔案
-            </button>
-          </template>
-        </template>
-      </section>
+        </section>
+      </div>
     </main>
 
     <CategoryModal
@@ -797,44 +548,46 @@ onMounted(() => {
 
 <style scoped>
 .settings-page {
+  width: 100%;
   min-height: calc(100vh - 64px);
   background: #f9fafb;
   color: #111827;
-  padding: 32px 32px 96px;
-}
-
-.desktop-settings {
-  width: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
+  padding: 32px 48px 80px;
 }
 
 .settings-title {
   margin: 0 0 28px;
-  color: #111827;
   font-size: 32px;
   line-height: 40px;
   font-weight: 900;
+  color: #111827;
 }
 
 .settings-layout {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 970px);
   gap: 24px;
   align-items: start;
 }
 
+.mobile-header {
+  display: none;
+}
+
+/* sidebar */
 .settings-menu {
+  width: 220px;
+  padding: 10px;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  padding: 10px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .settings-menu button {
   width: 100%;
   height: 40px;
+  padding: 0 14px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -844,16 +597,14 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 14px;
   cursor: pointer;
-  text-align: left;
 }
 
 .settings-menu button + button {
   margin-top: 6px;
 }
 
-.settings-menu button i {
+.settings-menu i {
   width: 16px;
   color: #4b5563;
   text-align: center;
@@ -870,8 +621,8 @@ onMounted(() => {
 
 .settings-menu button.logout {
   margin-top: 10px;
+  padding-top: 0;
   border-top: 1px solid #e5e7eb;
-  border-radius: 0 0 8px 8px;
   color: #ef4444;
 }
 
@@ -879,25 +630,28 @@ onMounted(() => {
   color: #ef4444;
 }
 
-.settings-content {
+/* main */
+.settings-main {
+  width: 100%;
   min-width: 0;
 }
 
 .setting-card {
+  width: 100%;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .setting-card-head {
   min-height: 76px;
+  padding: 0 24px;
   border-bottom: 1px solid #e5e7eb;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
 }
 
 .setting-head-title {
@@ -907,8 +661,10 @@ onMounted(() => {
 }
 
 .setting-head-title > i {
+  width: 18px;
   color: #2563eb;
   font-size: 15px;
+  text-align: center;
 }
 
 .setting-head-title h2 {
@@ -921,79 +677,57 @@ onMounted(() => {
 
 .setting-head-title p {
   margin: 2px 0 0;
-  font-size: 13px;
-  line-height: 20px;
   color: #9ca3af;
-}
-
-.profile-body,
-.password-body,
-.export-body {
-  padding: 24px;
-}
-
-.profile-top {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  margin-bottom: 26px;
-}
-
-.profile-avatar,
-.mobile-avatar {
-  width: 60px;
-  height: 60px;
-  border-radius: 999px;
-  background: #dbeafe;
-  color: #2563eb;
-  border: 3px solid #fff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  font-weight: 900;
-  flex-shrink: 0;
-}
-
-.profile-meta h3 {
-  margin: 0;
-  font-size: 18px;
-  line-height: 24px;
-  font-weight: 900;
-  color: #111827;
-}
-
-.profile-meta p {
-  margin: 2px 0 8px;
   font-size: 13px;
   line-height: 18px;
-  color: #9ca3af;
+}
+
+/* buttons */
+.primary-btn {
+  height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 7px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.ghost-btn {
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  background: #fff;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .small-outline-btn {
   height: 28px;
+  padding: 0 10px;
   border: 1px solid #e5e7eb;
+  border-radius: 6px;
   background: #fff;
   color: #374151;
-  border-radius: 6px;
-  padding: 0 10px;
   font-size: 12px;
   font-weight: 800;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 6px;
   cursor: pointer;
 }
 
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.field {
+/* form */
+.form-field {
   display: block;
   color: #374151;
   font-size: 13px;
@@ -1001,21 +735,21 @@ onMounted(() => {
   font-weight: 800;
 }
 
-.field-full {
-  margin-bottom: 18px;
+.form-field > span {
+  display: block;
+  margin-bottom: 7px;
 }
 
 .input-box {
-  margin-top: 7px;
   height: 44px;
+  padding: 0 14px;
   border: 1px solid #e5e7eb;
   border-radius: 7px;
   background: #fff;
+  color: #9ca3af;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 14px;
-  color: #9ca3af;
 }
 
 .input-box i {
@@ -1027,7 +761,7 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   border: 0;
-  outline: none;
+  outline: 0;
   background: transparent;
   color: #374151;
   font-size: 14px;
@@ -1038,75 +772,103 @@ onMounted(() => {
   color: #9ca3af;
 }
 
-.input-eye {
+.eye-icon {
   margin-left: auto;
 }
 
 .card-footer {
-  min-height: 72px;
+  height: 72px;
+  padding: 0 24px;
   border-top: 1px solid #e5e7eb;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  padding: 16px 24px;
 }
 
-.ghost-btn {
-  height: 40px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  color: #374151;
-  border-radius: 7px;
-  padding: 0 16px;
-  font-size: 14px;
-  font-weight: 800;
-  cursor: pointer;
+/* profile */
+.profile-body {
+  padding: 24px;
 }
 
-.primary-btn {
-  height: 40px;
-  border: 0;
-  background: #2563eb;
-  color: #fff;
-  border-radius: 7px;
-  padding: 0 18px;
-  font-size: 14px;
-  font-weight: 900;
-  display: inline-flex;
+.profile-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 26px;
+}
+
+.profile-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 999px;
+  background: #dbeafe;
+  border: 3px solid #fff;
+  color: #2563eb;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.14);
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  cursor: pointer;
+  font-size: 30px;
+  line-height: 1;
+  font-weight: 900;
+  flex: 0 0 auto;
 }
 
-.danger-zone {
+.profile-name-block h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 900;
+}
+
+.profile-name-block p {
+  margin: 2px 0 8px;
+  color: #9ca3af;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.profile-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.mobile-profile-panel {
+  display: none;
+}
+
+/* danger */
+.danger-box {
   margin-top: 20px;
-  border: 2px solid #ef4444;
-  background: #fee2e2;
-  border-radius: 12px;
   padding: 22px;
+  border: 2px solid #ef4444;
+  border-radius: 12px;
+  background: #fee2e2;
 }
 
-.danger-copy {
+.danger-title {
   display: flex;
   align-items: flex-start;
   gap: 12px;
 }
 
-.danger-copy i {
-  color: #ef4444;
+.danger-title i {
   margin-top: 3px;
+  color: #ef4444;
 }
 
-.danger-copy h3 {
+.danger-title h3 {
   margin: 0;
   color: #ef4444;
   font-size: 16px;
+  line-height: 22px;
   font-weight: 900;
 }
 
-.danger-copy p {
+.danger-title p {
   margin: 4px 0 16px;
   color: #6b7280;
   font-size: 13px;
@@ -1115,11 +877,11 @@ onMounted(() => {
 
 .danger-btn {
   height: 40px;
+  padding: 0 14px;
   border: 0;
+  border-radius: 7px;
   background: #ef4444;
   color: #fff;
-  border-radius: 7px;
-  padding: 0 14px;
   font-size: 14px;
   font-weight: 900;
   display: inline-flex;
@@ -1128,69 +890,87 @@ onMounted(() => {
   cursor: pointer;
 }
 
-.category-card {
-  padding-bottom: 0;
+/* password */
+.password-body {
+  padding: 24px;
+}
+
+.password-body .full {
+  margin-bottom: 20px;
+}
+
+.password-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* categories */
+.categories-head {
+  min-height: 86px;
 }
 
 .category-group-title {
-  height: 34px;
+  height: 36px;
+  padding: 0 24px;
   background: #f3f4f6;
   border-bottom: 1px solid #e5e7eb;
   color: #6b7280;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   display: flex;
   align-items: center;
-  padding: 0 20px;
 }
 
 .category-row {
-  min-height: 58px;
+  min-height: 64px;
+  padding: 0 24px;
   border-bottom: 1px solid #f1f5f9;
   display: grid;
-  grid-template-columns: 10px 36px 1fr 90px 32px 32px;
+  grid-template-columns: 10px 36px 1fr auto 34px 34px;
   align-items: center;
-  gap: 12px;
-  padding: 0 18px;
+  gap: 14px;
 }
 
-.color-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.category-row:last-child {
+  border-bottom: 0;
 }
 
-.cat-icon {
+.category-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.category-emoji {
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   font-size: 18px;
 }
 
-.category-row strong,
-.mobile-category-row strong {
+.category-row strong {
   color: #111827;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 900;
 }
 
-.category-row small,
-.mobile-category-row small {
+.category-row small {
   color: #9ca3af;
-  font-size: 12px;
-  text-align: right;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .mini-action {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   border: 1px solid #e5e7eb;
-  border-radius: 7px;
+  border-radius: 8px;
   background: #fff;
-  color: #64748b;
+  color: #6b7280;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1201,185 +981,219 @@ onMounted(() => {
   color: #ef4444;
 }
 
-.export-label {
-  margin: 0 0 8px;
+/* export */
+.export-body {
+  padding: 24px;
+}
+
+.export-date-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.format-label {
+  margin: 18px 0 7px;
   color: #374151;
   font-size: 13px;
+  line-height: 20px;
   font-weight: 800;
 }
 
-.format-grid {
+.export-format-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: 16px;
 }
 
-.format-grid button {
-  height: 96px;
+.export-format {
+  height: 112px;
   border: 1px solid #e5e7eb;
-  border-radius: 7px;
+  border-radius: 8px;
   background: #fff;
+  color: #374151;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  color: #6b7280;
+  flex-direction: column;
   cursor: pointer;
 }
 
-.format-grid button.active {
+.export-format.active {
   border: 2px solid #2563eb;
   background: #dbeafe;
-  color: #2563eb;
 }
 
-.format-grid i {
+.format-icon {
   font-size: 24px;
+  line-height: 1;
+  margin-bottom: 6px;
 }
 
-.csv-icon {
-  color: #16a34a;
-}
-
-.json-icon {
-  color: #9ca3af;
-}
-
-.format-grid strong {
-  font-size: 14px;
-  color: #374151;
+.export-format strong {
+  color: #2563eb;
+  font-size: 15px;
   font-weight: 900;
+  line-height: 20px;
 }
 
-.format-grid small {
-  font-size: 12px;
+.export-format small {
   color: #9ca3af;
+  font-size: 13px;
+  line-height: 20px;
 }
 
 .export-info {
-  min-height: 36px;
+  min-height: 42px;
   margin-top: 18px;
+  padding: 0 16px;
+  border-radius: 7px;
   background: #dbeafe;
   color: #2563eb;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 700;
   display: flex;
   align-items: center;
-  padding: 0 14px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 800;
 }
 
-.mobile-settings {
-  display: none;
+.export-info strong {
+  font-weight: 900;
 }
 
-/* tablet */
-@media (max-width: 1024px) {
+/* tablet 768 */
+@media (min-width: 481px) and (max-width: 900px) {
   .settings-page {
-    padding: 24px 24px 96px;
+    min-height: calc(100vh - 64px);
+    padding: 28px 72px 96px 72px;
   }
 
-  .desktop-settings {
-    max-width: 768px;
+  .settings-title {
+    margin-bottom: 26px;
+    font-size: 26px;
+    line-height: 34px;
   }
 
   .settings-layout {
     display: block;
-  }
-
-  .settings-title {
-    margin-bottom: 24px;
+    width: 100%;
   }
 
   .settings-menu {
-    display: flex;
-    gap: 0;
+    width: 100%;
+    height: 44px;
     padding: 0;
-    margin-bottom: 20px;
+    margin: 0 0 18px;
+    background: transparent;
     border: 0;
     border-bottom: 1px solid #e5e7eb;
     border-radius: 0;
     box-shadow: none;
-    background: transparent;
-    overflow-x: auto;
+    display: flex;
+    align-items: flex-end;
+    gap: 0;
   }
 
   .settings-menu button {
     width: auto;
     height: 44px;
-    padding: 0 18px;
+    padding: 0 16px;
     border-radius: 0;
+    border-bottom: 2px solid transparent;
     background: transparent;
-    white-space: nowrap;
     color: #6b7280;
+    display: inline-flex;
+    justify-content: center;
+  }
+
+  .settings-menu button i {
+    display: none;
   }
 
   .settings-menu button.active {
     background: transparent;
+    border-bottom-color: #2563eb;
     color: #2563eb;
-    border-bottom: 2px solid #2563eb;
   }
 
   .settings-menu button.logout {
     display: none;
   }
 
-  .form-grid,
-  .format-grid {
-    grid-template-columns: 1fr;
+  .settings-main {
+    width: 100%;
   }
 
-  .profile-top {
-    align-items: flex-start;
-  }
-}
-
-/* mobile */
-@media (max-width: 480px) {
-  .settings-page {
-    min-height: calc(100vh - 72px);
-    padding: 0 16px 96px;
-    background: #f9fafb;
+  .desktop-card-head {
+    min-height: 52px;
   }
 
-  .desktop-settings {
+  .setting-card-head {
+    min-height: 52px;
+    padding: 0 18px;
+  }
+
+  .setting-head-title h2 {
+    font-size: 15px;
+    line-height: 22px;
+  }
+
+  .setting-head-title p {
     display: none;
   }
 
-  .mobile-settings {
-    display: block;
+  .profile-body,
+  .password-body,
+  .export-body {
+    padding: 18px;
   }
 
-  .mobile-home-head,
-  .mobile-detail-head {
-    height: 56px;
-    margin: 0 -16px 16px;
+  .profile-form-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .password-grid,
+  .export-date-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .card-footer {
+    height: 70px;
+    padding: 0 18px;
+  }
+
+  .danger-box {
+    padding: 18px;
+  }
+
+  .category-row {
+    padding: 0 18px;
+    grid-template-columns: 10px 36px 1fr auto 34px 34px;
+  }
+}
+
+/* mobile 375 */
+@media (max-width: 480px) {
+  .settings-page {
+    min-height: 100vh;
+    padding: 0 16px 32px;
+    background: #f9fafb;
+  }
+
+  .mobile-header {
+    height: 52px;
+    margin: 0 -16px;
     padding: 0 16px;
     background: #fff;
     border-bottom: 1px solid #e5e7eb;
-  }
-
-  .mobile-home-head {
-    display: flex;
-    align-items: center;
-  }
-
-  .mobile-home-head h1 {
-    margin: 0;
-    color: #111827;
-    font-size: 20px;
-    line-height: 28px;
-    font-weight: 900;
-  }
-
-  .mobile-detail-head {
     display: grid;
-    grid-template-columns: 48px 1fr 72px;
+    grid-template-columns: 36px 1fr 72px;
     align-items: center;
   }
 
-  .mobile-detail-head h1 {
+  .mobile-header h1 {
     margin: 0;
     text-align: center;
     color: #111827;
@@ -1389,267 +1203,231 @@ onMounted(() => {
   }
 
   .mobile-back {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border: 0;
     background: transparent;
     color: #111827;
     display: inline-flex;
     align-items: center;
     justify-content: flex-start;
-    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .mobile-header-spacer {
+    display: block;
   }
 
   .mobile-add-btn {
-    height: 34px;
+    height: 32px;
     border: 0;
     border-radius: 8px;
     background: #2563eb;
     color: #fff;
     font-size: 13px;
     font-weight: 900;
-    cursor: pointer;
   }
 
-  .mobile-profile-summary,
-  .mobile-avatar-card,
-  .mobile-form-card,
-  .mobile-menu-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  .settings-title,
+  .settings-menu {
+    display: none;
   }
 
-  .mobile-profile-summary {
-    height: 152px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 12px;
+  .settings-layout {
+    display: block;
   }
 
-  .mobile-profile-summary h2 {
-    margin: 8px 0 2px;
-    color: #111827;
-    font-size: 16px;
-    font-weight: 900;
-  }
-
-  .mobile-profile-summary p {
-    margin: 0;
-    color: #9ca3af;
-    font-size: 12px;
-  }
-
-  .mobile-menu-card {
-    overflow: hidden;
-    margin-bottom: 12px;
-  }
-
-  .mobile-group-label {
-    height: 36px;
-    margin: 0;
-    padding: 0 16px;
-    background: #f3f4f6;
-    border-bottom: 1px solid #e5e7eb;
-    color: #6b7280;
-    font-size: 12px;
-    font-weight: 800;
-    display: flex;
-    align-items: center;
-  }
-
-  .mobile-menu-item {
+  .settings-main {
     width: 100%;
-    min-height: 68px;
-    border: 0;
-    border-bottom: 1px solid #f1f5f9;
-    background: #fff;
-    display: grid;
-    grid-template-columns: 42px 1fr 18px;
-    align-items: center;
-    gap: 10px;
-    padding: 0 16px;
-    text-align: left;
-    cursor: pointer;
   }
 
-  .mobile-menu-item:last-child {
-    border-bottom: 0;
+  .desktop-card-head,
+  .desktop-footer,
+  .desktop-danger,
+  .profile-card {
+    display: none;
   }
 
-  .mobile-item-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    background: #f3f4f6;
-    color: #111827;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .mobile-item-icon.danger {
-    background: #fee2e2;
-    color: #ef4444;
-  }
-
-  .mobile-menu-item strong {
+  .mobile-profile-panel {
     display: block;
-    color: #111827;
-    font-size: 14px;
-    font-weight: 900;
-    line-height: 20px;
-  }
-
-  .mobile-menu-item small {
-    display: block;
-    margin-top: 2px;
-    color: #9ca3af;
-    font-size: 12px;
-    line-height: 16px;
-  }
-
-  .mobile-menu-item > i {
-    color: #111827;
-    font-size: 12px;
-  }
-
-  .mobile-logout strong,
-  .mobile-logout > i {
-    color: #ef4444;
-  }
-
-  .mobile-danger-box {
-    margin-top: 12px;
-    border: 2px solid #ef4444;
-    background: #fee2e2;
-    border-radius: 10px;
-    padding: 14px;
-  }
-
-  .mobile-danger-box h3 {
-    margin: 0;
-    color: #ef4444;
-    font-size: 15px;
-    font-weight: 900;
-  }
-
-  .mobile-danger-box p {
-    margin: 4px 0 12px;
-    color: #6b7280;
-    font-size: 12px;
-  }
-
-  .mobile-danger-box button {
-    height: 36px;
-    border: 0;
-    border-radius: 7px;
-    background: #ef4444;
-    color: #fff;
-    padding: 0 12px;
-    font-size: 13px;
-    font-weight: 900;
+    padding-top: 14px;
   }
 
   .mobile-avatar-card {
-    height: 136px;
+    min-height: 136px;
+    padding: 22px 16px 16px;
     margin-bottom: 12px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
-
-  .mobile-form-card {
-    padding: 14px;
-    margin-bottom: 12px;
-  }
-
-  .mobile-form-card .field + .field {
-    margin-top: 14px;
-  }
-
-  .mobile-input {
-    margin-top: 7px;
-    height: 42px;
-    border: 1px solid #e5e7eb;
-    border-radius: 7px;
     background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
     display: flex;
     align-items: center;
-    padding: 0 12px;
+    flex-direction: column;
     gap: 10px;
   }
 
-  .mobile-input.with-icon i {
-    color: #9ca3af;
-    font-size: 13px;
+  .mobile-avatar-card .profile-avatar {
+    width: 58px;
+    height: 58px;
+    font-size: 30px;
   }
 
-  .mobile-input input {
+  .mobile-form-card {
+    padding: 16px;
+    margin-bottom: 12px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+  }
+
+  .mobile-form-field {
+    display: block;
+    color: #374151;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .mobile-form-field + .mobile-form-field {
+    margin-top: 16px;
+  }
+
+  .mobile-form-field span {
+    display: block;
+    margin-bottom: 7px;
+  }
+
+  .mobile-form-field input {
     width: 100%;
-    height: 100%;
-    border: 0;
-    outline: none;
-    background: transparent;
+    height: 42px;
+    padding: 0 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 7px;
+    background: #fff;
     color: #111827;
     font-size: 14px;
-    font-weight: 500;
+    outline: none;
   }
 
-  .mobile-primary-full {
+  .mobile-full-primary {
     width: 100%;
-    height: 44px;
+    height: 46px;
     border: 0;
     border-radius: 7px;
     background: #2563eb;
     color: #fff;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 900;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    cursor: pointer;
   }
 
-  .mobile-category-list {
-    background: transparent;
+  .setting-card {
+    margin-top: 14px;
+    border-radius: 12px;
   }
 
-  .mobile-category-row {
-    min-height: 64px;
-    background: #fff;
-    border-bottom: 1px solid #f1f5f9;
-    display: grid;
-    grid-template-columns: 40px 1fr 32px 32px;
-    align-items: center;
-    gap: 10px;
-    padding: 0 14px;
+  .setting-card-head {
+    display: none;
   }
 
-  .mobile-category-row small {
-    display: block;
-    margin-top: 2px;
-    text-align: left;
+  .password-body,
+  .export-body {
+    padding: 16px;
   }
 
-  .mobile-format-grid {
+  .password-grid,
+  .export-date-grid,
+  .export-format-grid {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
 
-  .mobile-format-grid button {
+  .password-body .full {
+    margin-bottom: 16px;
+  }
+
+  .form-field > span {
+    margin-bottom: 7px;
+  }
+
+  .input-box {
+    height: 42px;
+  }
+
+  .card-footer {
+    height: auto;
+    padding: 0 16px 16px;
+    border-top: 0;
+  }
+
+  .card-footer .primary-btn {
+    width: 100%;
+    height: 46px;
+  }
+
+  .categories-card {
+    margin-top: 14px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .categories-head {
+    display: none;
+  }
+
+  .category-group {
+    margin-bottom: 14px;
+    background: #fff;
+  }
+
+  .category-group-title {
+    height: 32px;
+    padding: 0 14px;
+    font-size: 12px;
+  }
+
+  .category-row {
+    min-height: 64px;
+    padding: 0 14px;
+    grid-template-columns: 36px 1fr 34px 34px;
+    gap: 12px;
+    background: #fff;
+  }
+
+  .category-dot {
+    display: none;
+  }
+
+  .category-emoji {
+    width: 36px;
+    height: 36px;
+  }
+
+  .category-row strong {
+    font-size: 15px;
+  }
+
+  .category-row small {
+    grid-column: 2;
+    margin-top: -18px;
+    font-size: 12px;
+  }
+
+  .export-format {
     height: 104px;
   }
 
-  .mobile-export-info {
-    margin: 12px 0;
+  .export-info {
     min-height: 40px;
     font-size: 12px;
+  }
+
+  .export-download-btn {
+    width: 100%;
   }
 }
 </style>

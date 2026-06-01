@@ -36,8 +36,12 @@ function normalizeEmail(email: string) {
 }
 
 function toUser(account: MockAccount): User {
-  const { password, ...user } = account
-  return user
+  return {
+    id: account.id,
+    email: account.email,
+    name: account.name,
+    createdAt: account.createdAt,
+  }
 }
 
 function readJson<T>(key: string, fallback: T): T {
@@ -174,7 +178,89 @@ function getSummary(items: FinanceRecord[]) {
 }
 
 export const mockApi = {
-  
+  async register(payload: RegisterRequest): Promise<RegisterResponse> {
+    const email = normalizeEmail(payload.email)
+    const name = payload.name.trim()
+    const password = payload.password
+
+    if (!name) {
+      throw new Error('請輸入姓名')
+    }
+
+    if (!email) {
+      throw new Error('請輸入 Email')
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      throw new Error('請輸入有效的 Email 格式')
+    }
+
+    if (!/^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(password)) {
+      throw new Error('密碼至少 8 碼，且需包含英文字母與數字')
+    }
+
+    const exists = mockUsers.some((user) => normalizeEmail(user.email) === email)
+
+    if (exists) {
+      throw new Error('此 Email 已被註冊')
+    }
+
+    const account: MockAccount = {
+      id: `u_${Date.now()}`,
+      email,
+      name,
+      password,
+      createdAt: new Date().toISOString(),
+    }
+
+    mockUsers = [...mockUsers, account]
+    saveMockUsers(mockUsers)
+
+    return wait({
+      message: '註冊成功，請登入',
+      user: toUser(account),
+    })
+  },
+
+  async login(payload: LoginRequest): Promise<LoginResponse> {
+    const email = normalizeEmail(payload.email)
+    const password = payload.password
+
+    if (!email || !password) {
+      throw new Error('請輸入 Email 與密碼')
+    }
+
+    const account = mockUsers.find((user) => {
+      return normalizeEmail(user.email) === email && user.password === password
+    })
+
+    if (!account) {
+      throw new Error('帳號或密碼錯誤')
+    }
+
+    const expiresIn = 28800
+    const token = `mock-token-${account.id}-${Date.now()}`
+
+    mockSession = {
+      token,
+      userId: account.id,
+      expiresAt: Date.now() + expiresIn * 1000,
+    }
+
+    saveMockSession(mockSession)
+
+    return wait({
+      accessToken: token,
+      tokenType: 'Bearer',
+      expiresIn,
+      user: toUser(account),
+    })
+  },
+
+  async me(): Promise<User> {
+    return wait(assertToken())
+  },
+
   async getRecords(query: RecordsQuery): Promise<RecordsResponse> {
     assertToken()
     const page = query.page || 1

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import AppShell from '@/components/layout/AppShell.vue'
-import FabButton from '@/components/layout/FabButton.vue'
 import RecordModal from '@/components/records/RecordModal.vue'
 import { recordsApi } from '@/api/records.api'
 import { useCategoriesStore } from '@/stores/categories.store'
@@ -263,7 +262,15 @@ onMounted(fetchData)
       </section>
     </div>
 
-    <FabButton @click="modalOpen = true" />
+    <button
+      v-if="!modalOpen"
+      class="mobile-create-fab"
+      type="button"
+      aria-label="新增紀錄"
+      @click="modalOpen = true"
+    >
+      <i class="fa-solid fa-plus"></i>
+    </button>
 
     <RecordModal
       :open="modalOpen"
@@ -695,6 +702,10 @@ onMounted(fetchData)
   .empty-card {
     height: 430px;
   }
+
+  .mobile-create-fab {
+    display: none;
+  }
 }
 
 @media (max-width: 480px) {
@@ -875,6 +886,27 @@ onMounted(fetchData)
 
   .empty-card {
     height: 488px;
+  }
+  .mobile-create-fab {
+    position: fixed;
+    right: calc(18px + env(safe-area-inset-right));
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    z-index: 620;
+    width: 54px;
+    height: 54px;
+    border: 0;
+    border-radius: 999px;
+    background: #2563eb;
+    color: #ffffff;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.38);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+
+  .mobile-create-fab:active {
+    transform: translateY(1px);
   }
 }
 </style>

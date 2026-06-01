@@ -5,7 +5,105 @@ import type { CategoryStatsResponse, MonthlyStatsResponse } from '@/types/stats'
 import { currentMonth, shiftMonth } from '@/utils/date'
 
 const now = '2026-03-12T10:00:00.000Z'
-let mockUser: User = { id: 'u_abc123', email: 'user@example.com', name: '王小明', createdAt: now }
+
+type MockAccount = User & {
+  password: string
+}
+
+type MockSession = {
+  token: string
+  userId: string
+  expiresAt: number
+}
+
+const ACCESS_TOKEN_KEY = 'finance_access_token'
+const USER_KEY = 'finance_user'
+const MOCK_USERS_KEY = 'finance_mock_users'
+const MOCK_SESSION_KEY = 'finance_mock_session'
+
+const defaultMockUsers: MockAccount[] = [
+  {
+    id: 'u_abc123',
+    email: 'user@example.com',
+    name: '王小明',
+    password: 'Abc12345',
+    createdAt: now,
+  },
+]
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase()
+}
+
+function toUser(account: MockAccount): User {
+  const { password, ...user } = account
+  return user
+}
+
+function readJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return fallback
+    return JSON.parse(raw) as T
+  } catch {
+    return fallback
+  }
+}
+
+function saveMockUsers(users: MockAccount[]) {
+  localStorage.setItem(MOCK_USERS_KEY, JSON.stringify(users))
+}
+
+function saveMockSession(session: MockSession | null) {
+  if (!session) {
+    localStorage.removeItem(MOCK_SESSION_KEY)
+    return
+  }
+
+  localStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(session))
+}
+
+function clearMockAuth() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY)
+  localStorage.removeItem(USER_KEY)
+  localStorage.removeItem(MOCK_SESSION_KEY)
+}
+
+let mockUsers: MockAccount[] = readJson<MockAccount[]>(MOCK_USERS_KEY, defaultMockUsers)
+let mockSession: MockSession | null = readJson<MockSession | null>(MOCK_SESSION_KEY, null)
+
+if (!mockUsers.some((user) => normalizeEmail(user.email) === 'user@example.com')) {
+  mockUsers = [...defaultMockUsers, ...mockUsers]
+}
+
+saveMockUsers(mockUsers)
+
+function getCurrentMockUser(): User {
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY)
+
+  if (!token) {
+    throw new Error('TOKEN_MISSING')
+  }
+
+  if (!mockSession || mockSession.token !== token) {
+    clearMockAuth()
+    throw new Error('TOKEN_INVALID')
+  }
+
+  if (mockSession.expiresAt < Date.now()) {
+    clearMockAuth()
+    throw new Error('TOKEN_EXPIRED')
+  }
+
+  const account = mockUsers.find((user) => user.id === mockSession?.userId)
+
+  if (!account) {
+    clearMockAuth()
+    throw new Error('TOKEN_INVALID')
+  }
+
+  return toUser(account)
+}
 
 let categories: CategoriesResponse = {
   income: [
@@ -66,8 +164,7 @@ function wait<T>(payload: T, ms = 360): Promise<T> {
 }
 
 function assertToken() {
-  const token = localStorage.getItem('finance_access_token')
-  if (!token) throw new Error('TOKEN_MISSING')
+  return getCurrentMockUser()
 }
 
 function getSummary(items: FinanceRecord[]) {
@@ -77,24 +174,7 @@ function getSummary(items: FinanceRecord[]) {
 }
 
 export const mockApi = {
-  async register(payload: RegisterRequest): Promise<RegisterResponse> {
-    if (payload.email === mockUser.email) throw new Error('此 Email 已被註冊')
-    mockUser = { id: `u_${Date.now()}`, email: payload.email, name: payload.name, createdAt: new Date().toISOString() }
-    return wait({ message: '註冊成功，請登入', user: mockUser })
-  },
-  async login(payload: LoginRequest): Promise<LoginResponse> {
-    if (!payload.email || !payload.password) throw new Error('請輸入 Email 與密碼')
-    return wait({
-      accessToken: `mock-token-${Date.now()}`,
-      tokenType: 'Bearer',
-      expiresIn: 28800,
-      user: mockUser
-    })
-  },
-  async me(): Promise<User> {
-    assertToken()
-    return wait(mockUser)
-  },
+  
   async getRecords(query: RecordsQuery): Promise<RecordsResponse> {
     assertToken()
     const page = query.page || 1

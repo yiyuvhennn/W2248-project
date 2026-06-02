@@ -22,17 +22,13 @@ const modalOpen = ref(false)
 const editing = ref<Category | null>(null)
 const deleting = ref<Category | null>(null)
 const exportType = ref<'csv' | 'json'>('csv')
-
 const startDate = ref('2026-01-01')
 const endDate = ref('2026-03-06')
-
-const profileName = ref(auth.user?.name || '王小明')
-const profileEmail = ref(auth.user?.email || 'wangxm@example.com')
-
+const profileName = ref(auth.user?.name || '測試用戶')
+const profileEmail = ref(auth.user?.email || 'test@example.com')
 const currentPassword = ref('')
 const newPassword = ref('')
 const confirmPassword = ref('')
-
 const income = computed(() => store.categories.income)
 const expense = computed(() => store.categories.expense)
 
@@ -53,7 +49,7 @@ const mobileTitle = computed(() => {
 })
 
 const profileInitial = computed(() => {
-  return profileName.value.trim().charAt(0) || '王'
+  return profileName.value.trim().charAt(0) || '測'
 })
 function openMobileSetting(tab: SettingTab) {
   if (tab === 'logout') {
@@ -122,13 +118,41 @@ function menuClick(key: SettingTab) {
   active.value = key
 }
 
-function saveProfile() {
-  toast.success('個人資料已儲存')
+async function saveProfile() {
+  const name = profileName.value.trim()
+
+  if (!name) {
+    toast.error('請輸入姓名')
+    return
+  }
+
+  if (name.length > 50) {
+    toast.error('姓名不可超過 50 字')
+    return
+  }
+
+  try {
+    const user = await auth.updateProfile({
+      name,
+    })
+
+    profileName.value = user.name
+    profileEmail.value = user.email
+
+    toast.success('個人資料已儲存')
+  } catch (err) {
+    toast.error(getApiErrorMessage(err))
+  }
 }
 
-function updatePassword() {
+async function updatePassword() {
   if (!currentPassword.value || !newPassword.value || !confirmPassword.value) {
     toast.error('請完整輸入密碼欄位')
+    return
+  }
+
+  if (!/^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(newPassword.value)) {
+    toast.error('新密碼至少 8 碼，且需包含英文字母與數字')
     return
   }
 
@@ -137,11 +161,50 @@ function updatePassword() {
     return
   }
 
-  toast.success('密碼已更新')
+  try {
+    const response = await auth.changePassword({
+      currentPassword: currentPassword.value,
+      newPassword: newPassword.value,
+    })
+
+    currentPassword.value = ''
+    newPassword.value = ''
+    confirmPassword.value = ''
+
+    toast.success(response.message)
+  } catch (err) {
+    toast.error(getApiErrorMessage(err))
+  }
+}
+
+async function requestDeleteAccount() {
+  const confirmed = window.confirm('刪除帳號後將無法復原，確定要繼續嗎？')
+
+  if (!confirmed) return
+
+  const password = window.prompt('請輸入目前密碼以確認刪除帳號')
+
+  if (password === null) return
+
+  if (!password) {
+    toast.error('請輸入密碼')
+    return
+  }
+
+  try {
+    const response = await auth.deleteAccount({
+      password,
+    })
+
+    toast.success(response.message)
+    location.href = '/login'
+  } catch (err) {
+    toast.error(getApiErrorMessage(err))
+  }
 }
 
 function fakeAction() {
-  toast.info('此功能依 API 文件目前先以前端提示呈現')
+  toast.info('更換大頭照尚未列入 API 規格，暫以前端提示呈現')
 }
 
 function download() {
@@ -239,7 +302,7 @@ onMounted(() => {
                   <div class="profile-name-block">
                     <h3>{{ profileName }}</h3>
                     <p>{{ profileEmail }}</p>
-                    <button class="small-outline-btn" type="button" @click="fakeAction">
+                    <button class="small-outline-btn" type="button" @click="requestDeleteAccount">
                       <i class="fa-solid fa-pen"></i>
                       更換大頭照
                     </button>
@@ -259,7 +322,7 @@ onMounted(() => {
                     <span>電子信箱</span>
                     <div class="input-box">
                       <i class="fa-solid fa-envelope"></i>
-                      <input v-model="profileEmail" type="email" />
+                      <input v-model="profileEmail" type="email" disabled />
                     </div>
                   </label>
                 </div>
@@ -283,7 +346,7 @@ onMounted(() => {
                 </div>
               </div>
 
-              <button class="danger-btn" type="button" @click="fakeAction">
+              <button class="danger-btn" type="button" @click="requestDeleteAccount">
                 <i class="fa-solid fa-trash"></i>
                 刪除帳號及所有資料
               </button>
@@ -292,7 +355,7 @@ onMounted(() => {
             <section class="mobile-profile-panel">
               <div class="mobile-avatar-card">
                 <div class="profile-avatar">{{ profileInitial }}</div>
-                <button class="small-outline-btn" type="button" @click="fakeAction">
+                <button class="small-outline-btn" type="button" @click="requestDeleteAccount">
                   <i class="fa-solid fa-pen"></i>
                   更換大頭照
                 </button>
@@ -306,7 +369,7 @@ onMounted(() => {
 
                 <label class="mobile-form-field">
                   <span>電子信箱</span>
-                  <input v-model="profileEmail" type="email" />
+                  <input v-model="profileEmail" type="email" disabled />
                 </label>
               </div>
 

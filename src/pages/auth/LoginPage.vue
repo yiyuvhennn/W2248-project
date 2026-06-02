@@ -8,9 +8,11 @@ import { getApiErrorMessage } from '@/api/http'
 const router = useRouter()
 const auth = useAuthStore()
 const toast = useToastStore()
+
 const form = reactive({ email: '', password: '', remember: true })
 const error = ref('')
 const showPassword = ref(false)
+
 async function submit() {
   error.value = ''
 
@@ -30,15 +32,79 @@ async function submit() {
   }
 
   try {
-    await auth.login({ email: form.email, password: form.password })
+    await auth.login({
+      email: form.email.trim(),
+      password: form.password,
+    })
+
     toast.success('登入成功')
     router.push('/app/overview')
   } catch (err) {
     error.value = getApiErrorMessage(err)
   }
 }
-function forgot() { toast.info('忘記密碼功能尚未開放，請聯繫管理員') }
+
+async function forgot() {
+  const email = window.prompt('請輸入註冊 Email', form.email || 'test@example.com')
+
+  if (email === null) return
+
+  const normalizedEmail = email.trim()
+
+  if (!normalizedEmail) {
+    toast.error('請輸入 Email')
+    return
+  }
+
+  if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+    toast.error('請輸入有效的 Email 格式')
+    return
+  }
+
+  try {
+    const response = await auth.forgotPassword({
+      email: normalizedEmail,
+    })
+
+    toast.success(response.message)
+
+    const mockToken = localStorage.getItem('finance_last_reset_token')
+
+    if (!mockToken) {
+      toast.info('若 Email 存在，系統會寄出重設密碼信')
+      return
+    }
+
+    const shouldResetNow = window.confirm(
+      `Mock 模式已產生重設 token：\n${mockToken}\n\n是否現在直接測試重設密碼？`
+    )
+
+    if (!shouldResetNow) return
+
+    const newPassword = window.prompt('請輸入新密碼，至少 8 碼且需包含英文字母與數字')
+
+    if (newPassword === null) return
+
+    if (!/^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(newPassword)) {
+      toast.error('密碼至少 8 碼，且需包含英文字母與數字')
+      return
+    }
+
+    await auth.resetPassword({
+      token: mockToken,
+      newPassword,
+    })
+
+    form.email = normalizedEmail
+    form.password = ''
+
+    toast.success('密碼已重設，請用新密碼登入')
+  } catch (err) {
+    toast.error(getApiErrorMessage(err))
+  }
+}
 </script>
+
 <template>
   <div class="auth-bg">
     <div class="auth-frame login-frame">

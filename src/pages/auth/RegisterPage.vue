@@ -80,14 +80,15 @@ async function submit() {
   }
 
   try {
-    await auth.register({
-      name: form.name,
-      email: form.email,
-      password: form.password,
+    await auth.registerAndLogin({
+    name: form.name.trim(),
+    email: form.email.trim(),
+    password: form.password,
     })
 
-    toast.success('註冊成功，請登入')
-    router.push('/login')
+    toast.success('註冊成功，已自動登入')
+
+    router.push('/app/overview')
   } catch (err) {
     error.value = getApiErrorMessage(err)
   }
@@ -131,7 +132,7 @@ async function submit() {
           </div>
 
           <h2>建立新帳號</h2>
-          <p class="sub">填寫以下資料，完成後回到登入頁</p>
+          <p class="sub">填寫以下資料，完成後立即開始記帳</p>
 
           <label class="field-label">姓名</label>
           <div

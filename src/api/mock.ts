@@ -1,8 +1,20 @@
-import type { User, LoginRequest, RegisterRequest, LoginResponse, RegisterResponse } from '@/types/auth'
 import type { CategoriesResponse, Category, CategoryPayload, CategoryUpdatePayload } from '@/types/category'
 import type { FinanceRecord, RecordPayload, RecordsQuery, RecordsResponse, RecordUpdatePayload, RecordType } from '@/types/record'
 import type { CategoryStatsResponse, MonthlyStatsResponse } from '@/types/stats'
 import { currentMonth, shiftMonth } from '@/utils/date'
+import type {
+  User,
+  LoginRequest,
+  RegisterRequest,
+  LoginResponse,
+  RegisterResponse,
+  ForgotPasswordRequest,
+  ResetPasswordRequest,
+  MessageResponse,
+  UpdateProfileRequest,
+  ChangePasswordRequest,
+  DeleteAccountRequest,
+} from '@/types/auth'
 
 const now = '2026-03-12T10:00:00.000Z'
 
@@ -16,17 +28,25 @@ type MockSession = {
   expiresAt: number
 }
 
+type MockResetToken = {
+  token: string
+  email: string
+  expiresAt: number
+  used: boolean
+}
+
 const ACCESS_TOKEN_KEY = 'finance_access_token'
 const USER_KEY = 'finance_user'
 const MOCK_USERS_KEY = 'finance_mock_users'
 const MOCK_SESSION_KEY = 'finance_mock_session'
+const MOCK_RESET_TOKENS_KEY = 'finance_mock_reset_tokens'
 
 const defaultMockUsers: MockAccount[] = [
   {
-    id: 'u_abc123',
-    email: 'user@example.com',
-    name: '王小明',
-    password: 'Abc12345',
+    id: 'u_test001',
+    email: 'test@example.com',
+    name: '測試用戶',
+    password: 'Test1234',
     createdAt: now,
   },
 ]
@@ -67,6 +87,10 @@ function saveMockSession(session: MockSession | null) {
   localStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(session))
 }
 
+function saveMockResetTokens(tokens: MockResetToken[]) {
+  localStorage.setItem(MOCK_RESET_TOKENS_KEY, JSON.stringify(tokens))
+}
+
 function clearMockAuth() {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
   localStorage.removeItem(USER_KEY)
@@ -75,8 +99,9 @@ function clearMockAuth() {
 
 let mockUsers: MockAccount[] = readJson<MockAccount[]>(MOCK_USERS_KEY, defaultMockUsers)
 let mockSession: MockSession | null = readJson<MockSession | null>(MOCK_SESSION_KEY, null)
+let mockResetTokens: MockResetToken[] = readJson<MockResetToken[]>(MOCK_RESET_TOKENS_KEY, [])
 
-if (!mockUsers.some((user) => normalizeEmail(user.email) === 'user@example.com')) {
+if (!mockUsers.some((user) => normalizeEmail(user.email) === 'test@example.com')) {
   mockUsers = [...defaultMockUsers, ...mockUsers]
 }
 
@@ -126,6 +151,7 @@ let categories: CategoriesResponse = {
 }
 
 const base = '2026-03'
+
 let records: FinanceRecord[] = [
   createRecord('expense', 1280, 'cat_food', `${base}-06`, '超市採購'),
   createRecord('income', 30000, 'cat_salary', `${base}-05`, '薪資入帳'),
@@ -146,6 +172,7 @@ let records: FinanceRecord[] = [
 
 function createRecord(type: RecordType, amount: number, categoryId: string, date: string, note: string | null): FinanceRecord {
   const category = findCategory(categoryId)
+
   return {
     id: `rec_${Math.random().toString(36).slice(2, 10)}`,
     type,
@@ -174,7 +201,12 @@ function assertToken() {
 function getSummary(items: FinanceRecord[]) {
   const totalIncome = items.filter((r) => r.type === 'income').reduce((sum, r) => sum + r.amount, 0)
   const totalExpense = items.filter((r) => r.type === 'expense').reduce((sum, r) => sum + r.amount, 0)
-  return { totalIncome, totalExpense, balance: totalIncome - totalExpense }
+
+  return {
+    totalIncome,
+    totalExpense,
+    balance: totalIncome - totalExpense
+  }
 }
 
 export const mockApi = {
@@ -261,51 +293,278 @@ export const mockApi = {
     return wait(assertToken())
   },
 
+  async forgotPassword(payload: ForgotPasswordRequest): Promise<MessageResponse> {
+    const email = normalizeEmail(payload.email)
+
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) {
+      throw new Error('請輸入有效的 Email 格式')
+    }
+
+    const account = mockUsers.find((user) => normalizeEmail(user.email) === email)
+
+    if (account) {
+      const token = `reset-${account.id}-${Date.now()}`
+
+      mockResetTokens = [
+        ...mockResetTokens,
+        {
+          token,
+          email: account.email,
+          expiresAt: Date.now() + 30 * 60 * 1000,
+          used: false,
+        },
+      ]
+
+      saveMockResetTokens(mockResetTokens)
+
+      localStorage.setItem('finance_last_reset_token', token)
+      console.info('Mock reset password token:', token)
+    }
+
+    return wait({
+      message: '重設密碼信已寄出',
+    })
+  },
+
+  async resetPassword(payload: ResetPasswordRequest): Promise<MessageResponse> {
+    const token = payload.token.trim()
+    const newPassword = payload.newPassword
+
+    if (!token) {
+      throw new Error('RESET_TOKEN_INVALID')
+    }
+
+    if (!/^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(newPassword)) {
+      throw new Error('密碼至少 8 碼，且需包含英文字母與數字')
+    }
+
+    const resetToken = mockResetTokens.find((item) => item.token === token)
+
+    if (!resetToken || resetToken.used) {
+      throw new Error('RESET_TOKEN_INVALID')
+    }
+
+    if (resetToken.expiresAt < Date.now()) {
+      throw new Error('RESET_TOKEN_EXPIRED')
+    }
+
+    const account = mockUsers.find((user) => normalizeEmail(user.email) === normalizeEmail(resetToken.email))
+
+    if (!account) {
+      throw new Error('RESET_TOKEN_INVALID')
+    }
+
+    mockUsers = mockUsers.map((user) => {
+      if (user.id !== account.id) return user
+
+      return {
+        ...user,
+        password: newPassword,
+      }
+    })
+
+    mockResetTokens = mockResetTokens.map((item) => {
+      if (item.token !== token) return item
+
+      return {
+        ...item,
+        used: true,
+      }
+    })
+
+    saveMockUsers(mockUsers)
+    saveMockResetTokens(mockResetTokens)
+
+    return wait({
+      message: '密碼已重設，請重新登入',
+    })
+  },
+
+  async updateProfile(payload: UpdateProfileRequest): Promise<User> {
+    const currentUser = assertToken()
+    const name = payload.name.trim()
+
+    if (!name) {
+      throw new Error('name 不可為空')
+    }
+
+    if (name.length > 50) {
+      throw new Error('name 不可超過 50 字')
+    }
+
+    mockUsers = mockUsers.map((user) => {
+      if (user.id !== currentUser.id) return user
+
+      return {
+        ...user,
+        name,
+      }
+    })
+
+    saveMockUsers(mockUsers)
+
+    const updatedAccount = mockUsers.find((user) => user.id === currentUser.id)
+
+    if (!updatedAccount) {
+      throw new Error('TOKEN_INVALID')
+    }
+
+    return wait(toUser(updatedAccount))
+  },
+
+  async changePassword(payload: ChangePasswordRequest): Promise<MessageResponse> {
+    const currentUser = assertToken()
+    const currentPassword = payload.currentPassword
+    const newPassword = payload.newPassword
+
+    const account = mockUsers.find((user) => user.id === currentUser.id)
+
+    if (!account) {
+      throw new Error('TOKEN_INVALID')
+    }
+
+    if (account.password !== currentPassword) {
+      throw new Error('INVALID_CREDENTIALS')
+    }
+
+    if (!/^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(newPassword)) {
+      throw new Error('密碼至少 8 碼，且需包含英文字母與數字')
+    }
+
+    if (currentPassword === newPassword) {
+      throw new Error('SAME_PASSWORD')
+    }
+
+    mockUsers = mockUsers.map((user) => {
+      if (user.id !== currentUser.id) return user
+
+      return {
+        ...user,
+        password: newPassword,
+      }
+    })
+
+    saveMockUsers(mockUsers)
+
+    return wait({
+      message: '密碼已更新',
+    })
+  },
+
+  async deleteAccount(payload: DeleteAccountRequest): Promise<MessageResponse> {
+    const currentUser = assertToken()
+    const account = mockUsers.find((user) => user.id === currentUser.id)
+
+    if (!account) {
+      throw new Error('TOKEN_INVALID')
+    }
+
+    if (!payload.password) {
+      throw new Error('請輸入密碼')
+    }
+
+    if (account.password !== payload.password) {
+      throw new Error('INVALID_CREDENTIALS')
+    }
+
+    mockUsers = mockUsers.filter((user) => user.id !== currentUser.id)
+    mockResetTokens = mockResetTokens.filter((item) => normalizeEmail(item.email) !== normalizeEmail(account.email))
+
+    saveMockUsers(mockUsers)
+    saveMockResetTokens(mockResetTokens)
+    clearMockAuth()
+
+    return wait({
+      message: '帳號已刪除',
+    })
+  },
+
   async getRecords(query: RecordsQuery): Promise<RecordsResponse> {
     assertToken()
+
     const page = query.page || 1
     const pageSize = query.pageSize || 20
     const month = query.month || currentMonth()
+
     const filteredAll = records
       .filter((record) => record.date.startsWith(month))
       .filter((record) => !query.categoryId || record.categoryId === query.categoryId)
       .filter((record) => !query.type || record.type === query.type)
       .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
+
     const start = (page - 1) * pageSize
+
     return wait({
       data: filteredAll.slice(start, start + pageSize),
-      pagination: { page, pageSize, totalItems: filteredAll.length, totalPages: Math.max(1, Math.ceil(filteredAll.length / pageSize)) },
+      pagination: {
+        page,
+        pageSize,
+        totalItems: filteredAll.length,
+        totalPages: Math.max(1, Math.ceil(filteredAll.length / pageSize))
+      },
       summary: getSummary(filteredAll)
     })
   },
+
   async createRecord(payload: RecordPayload): Promise<FinanceRecord> {
     assertToken()
+
     const record = createRecord(payload.type, Number(payload.amount), payload.categoryId, payload.date, payload.note || null)
     records.unshift(record)
+
     return wait(record)
   },
+
   async updateRecord(id: string, payload: RecordUpdatePayload): Promise<FinanceRecord> {
     assertToken()
+
     const idx = records.findIndex((item) => item.id === id)
-    if (idx < 0) throw new Error('找不到紀錄')
-    const next = { ...records[idx], ...payload, updatedAt: new Date().toISOString() } as FinanceRecord
-    if (payload.categoryId) next.categoryName = findCategory(payload.categoryId)?.name || next.categoryName
+
+    if (idx < 0) {
+      throw new Error('找不到紀錄')
+    }
+
+    const next = {
+      ...records[idx],
+      ...payload,
+      updatedAt: new Date().toISOString()
+    } as FinanceRecord
+
+    if (payload.categoryId) {
+      next.categoryName = findCategory(payload.categoryId)?.name || next.categoryName
+    }
+
     records[idx] = next
+
     return wait(next)
   },
+
   async deleteRecord(id: string): Promise<{ message: string; deletedId: string }> {
     assertToken()
+
     records = records.filter((item) => item.id !== id)
-    return wait({ message: '紀錄已成功刪除', deletedId: id })
+
+    return wait({
+      message: '紀錄已成功刪除',
+      deletedId: id
+    })
   },
+
   async getCategories(): Promise<CategoriesResponse> {
     assertToken()
+
     return wait(JSON.parse(JSON.stringify(categories)))
   },
+
   async createCategory(payload: CategoryPayload): Promise<Category> {
     assertToken()
+
     const group = categories[payload.type]
-    if (group.some((item) => item.name === payload.name)) throw new Error('同類型下已有相同分類名稱')
+
+    if (group.some((item) => item.name === payload.name)) {
+      throw new Error('同類型下已有相同分類名稱')
+    }
+
     const item: Category = {
       id: `cat_${Date.now()}`,
       name: payload.name,
@@ -314,60 +573,117 @@ export const mockApi = {
       color: payload.color || '#9E9E9E',
       createdAt: new Date().toISOString()
     }
+
     group.push(item)
+
     return wait(item)
   },
+
   async updateCategory(id: string, payload: CategoryUpdatePayload): Promise<Category> {
     assertToken()
+
     const all = [...categories.income, ...categories.expense]
     const category = all.find((item) => item.id === id)
-    if (!category) throw new Error('找不到分類')
+
+    if (!category) {
+      throw new Error('找不到分類')
+    }
+
     Object.assign(category, payload)
-    records = records.map((record) => record.categoryId === id ? { ...record, categoryName: category.name } : record)
+
+    records = records.map((record) => {
+      if (record.categoryId !== id) return record
+
+      return {
+        ...record,
+        categoryName: category.name
+      }
+    })
+
     return wait(category)
   },
+
   async deleteCategory(id: string): Promise<{ message: string; deletedId: string }> {
     assertToken()
-    if (records.some((record) => record.categoryId === id)) throw new Error('此分類底下仍有紀錄，無法刪除')
+
+    if (records.some((record) => record.categoryId === id)) {
+      throw new Error('此分類底下仍有紀錄，無法刪除')
+    }
+
     categories.income = categories.income.filter((item) => item.id !== id)
     categories.expense = categories.expense.filter((item) => item.id !== id)
-    return wait({ message: '分類已成功刪除', deletedId: id })
+
+    return wait({
+      message: '分類已成功刪除',
+      deletedId: id
+    })
   },
+
   async getCategoryStats(month: string, type: RecordType): Promise<CategoryStatsResponse> {
     assertToken()
+
     const items = records.filter((record) => record.date.startsWith(month) && record.type === type)
     const totalAmount = items.reduce((sum, record) => sum + record.amount, 0)
     const byCategory = new Map<string, { amount: number; count: number; name: string }>()
+
     items.forEach((record) => {
-      const current = byCategory.get(record.categoryId) || { amount: 0, count: 0, name: record.categoryName }
+      const current = byCategory.get(record.categoryId) || {
+        amount: 0,
+        count: 0,
+        name: record.categoryName
+      }
+
       current.amount += record.amount
       current.count += 1
+
       byCategory.set(record.categoryId, current)
     })
+
     return wait({
       month,
       type,
       totalAmount,
-      categories: Array.from(byCategory.entries()).map(([categoryId, item]) => ({
-        categoryId,
-        categoryName: item.name,
-        amount: item.amount,
-        percentage: totalAmount ? Math.round((item.amount / totalAmount) * 10000) / 100 : 0,
-        count: item.count
-      })).sort((a, b) => b.amount - a.amount)
+      categories: Array.from(byCategory.entries())
+        .map(([categoryId, item]) => ({
+          categoryId,
+          categoryName: item.name,
+          amount: item.amount,
+          percentage: totalAmount ? Math.round((item.amount / totalAmount) * 10000) / 100 : 0,
+          count: item.count
+        }))
+        .sort((a, b) => b.amount - a.amount)
     })
   },
+
   async getMonthlyStats(month: string): Promise<MonthlyStatsResponse> {
     assertToken()
-    const months = [-5, -4, -3, -2, -1, 0].map((offset) => shiftMonth(month, offset)).map((m) => {
-      const summary = getSummary(records.filter((record) => record.date.startsWith(m)))
-      if (summary.totalIncome === 0 && summary.totalExpense === 0) {
-        const seededIncome = 42000 + Math.round(Math.random() * 12000)
-        const seededExpense = 18000 + Math.round(Math.random() * 9000)
-        return { month: m, totalIncome: seededIncome, totalExpense: seededExpense, balance: seededIncome - seededExpense }
-      }
-      return { month: m, ...summary }
+
+    const months = [-5, -4, -3, -2, -1, 0]
+      .map((offset) => shiftMonth(month, offset))
+      .map((m) => {
+        const summary = getSummary(records.filter((record) => record.date.startsWith(m)))
+
+        if (summary.totalIncome === 0 && summary.totalExpense === 0) {
+          const seededIncome = 42000 + Math.round(Math.random() * 12000)
+          const seededExpense = 18000 + Math.round(Math.random() * 9000)
+
+          return {
+            month: m,
+            totalIncome: seededIncome,
+            totalExpense: seededExpense,
+            balance: seededIncome - seededExpense
+          }
+        }
+
+        return {
+          month: m,
+          ...summary
+        }
+      })
+
+    return wait({
+      baseMonth: month,
+      months
     })
-    return wait({ baseMonth: month, months })
   }
 }

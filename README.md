@@ -24,11 +24,10 @@ npm run dev
 開發伺服器預設：`http://localhost:5173`
 
 ## 測試帳號（Mock API）
-
-```txt
-Email: user@example.com
-Password: Abc12345
-```
+   測試帳號（email）：test@example.com
+   測試密碼（password）：Test1234
+   測試使用者名稱（name）：測試用戶
+   使用者 ID（user.id）：u_test001
 
 ## 環境變數
 

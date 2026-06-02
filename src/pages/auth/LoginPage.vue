@@ -9,19 +9,26 @@ const router = useRouter()
 const auth = useAuthStore()
 const toast = useToastStore()
 
-const form = reactive({ email: '', password: '', remember: true })
+const form = reactive({
+  email: '',
+  password: '',
+  remember: true,
+})
+
 const error = ref('')
 const showPassword = ref(false)
 
 async function submit() {
   error.value = ''
 
-  if (!form.email.trim()) {
+  const email = form.email.trim()
+
+  if (!email) {
     error.value = '請輸入電子信箱'
     return
   }
 
-  if (!/^\S+@\S+\.\S+$/.test(form.email)) {
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
     error.value = '請輸入有效的電子信箱格式'
     return
   }
@@ -33,7 +40,7 @@ async function submit() {
 
   try {
     await auth.login({
-      email: form.email.trim(),
+      email,
       password: form.password,
     })
 
@@ -45,25 +52,25 @@ async function submit() {
 }
 
 async function forgot() {
-  const email = window.prompt('請輸入註冊 Email', form.email || 'test@example.com')
+  const emailInput = window.prompt('請輸入註冊 Email', form.email || 'test@example.com')
 
-  if (email === null) return
+  if (emailInput === null) return
 
-  const normalizedEmail = email.trim()
+  const email = emailInput.trim()
 
-  if (!normalizedEmail) {
+  if (!email) {
     toast.error('請輸入 Email')
     return
   }
 
-  if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
     toast.error('請輸入有效的 Email 格式')
     return
   }
 
   try {
     const response = await auth.forgotPassword({
-      email: normalizedEmail,
+      email,
     })
 
     toast.success(response.message)
@@ -95,7 +102,7 @@ async function forgot() {
       newPassword,
     })
 
-    form.email = normalizedEmail
+    form.email = email
     form.password = ''
 
     toast.success('密碼已重設，請用新密碼登入')

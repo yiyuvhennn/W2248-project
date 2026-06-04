@@ -17,15 +17,24 @@ const router = createRouter({
     { path: '/app/overview', component: OverviewPage, meta: { requiresAuth: true, title: '月份總覽' } },
     { path: '/app/records', component: RecordsPage, meta: { requiresAuth: true, title: '記帳紀錄' } },
     { path: '/app/stats', component: StatsPage, meta: { requiresAuth: true, title: '統計分析' } },
-    { path: '/app/settings', component: SettingsPage, meta: { requiresAuth: true, title: '設定' } }
+    { path: '/app/settings', component: SettingsPage, meta: { requiresAuth: true, title: '設定' } },
+
+    // 404 catch-all：任何不存在的路徑都導回首頁
+    { path: '/:pathMatch(.*)*', redirect: '/' }
   ],
   scrollBehavior: () => ({ top: 0 })
 })
 
 router.beforeEach((to) => {
   const auth = useAuthStore()
-  if (to.meta.requiresAuth && !auth.isAuthenticated) return '/login'
-  if (to.meta.guestOnly && auth.isAuthenticated) return '/app/overview'
+
+  if (to.meta.requiresAuth && !auth.isAuthenticated) {
+    return '/login'
+  }
+
+  if (to.meta.guestOnly && auth.isAuthenticated) {
+    return '/app/overview'
+  }
 })
 
 export default router

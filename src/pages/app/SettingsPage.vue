@@ -302,7 +302,7 @@ onMounted(() => {
                   <div class="profile-name-block">
                     <h3>{{ profileName }}</h3>
                     <p>{{ profileEmail }}</p>
-                    <button class="small-outline-btn" type="button" @click="requestDeleteAccount">
+                    <button class="small-outline-btn" type="button" @click="fakeAction">
                       <i class="fa-solid fa-pen"></i>
                       更換大頭照
                     </button>
@@ -355,7 +355,7 @@ onMounted(() => {
             <section class="mobile-profile-panel">
               <div class="mobile-avatar-card">
                 <div class="profile-avatar">{{ profileInitial }}</div>
-                <button class="small-outline-btn" type="button" @click="requestDeleteAccount">
+                <button class="small-outline-btn" type="button" @click="fakeAction"">
                   <i class="fa-solid fa-pen"></i>
                   更換大頭照
                 </button>
